@@ -1,6 +1,6 @@
 import type { UID, Modules } from '@strapi/types';
 import { async, errors } from '@strapi/utils';
-import { assoc, omit } from 'lodash/fp';
+import { assoc, omit, where } from 'lodash/fp';
 
 import * as components from './components';
 
@@ -17,9 +17,9 @@ const createEntriesService = (
   const contentType = strapi.contentType(uid);
 
   async function createEntry(params = {} as any) {
+    console.log("create entry");
     const { data, ...restParams } = await transformParamsDocumentId(uid, params);
     const query = transformParamsToQuery(uid, pickSelectionParams(restParams) as any); // select / populate
-
     // Validation
     if (!data) {
       throw new Error('Create requires data attribute');
@@ -44,26 +44,37 @@ const createEntriesService = (
           // Current entry is published, check for existing published entry
           whereClause.publishedAt = { $notNull: true };
           publishedStateDescription = 'published';
+          const findLatestVersion = await strapi.db.query(uid).findOne({
+            select: ['id', 'version'],
+            where: {
+              publishedAt: { $notNull: true },
+            },
+            orderBy: { version: 'desc' },
+          });
+          console.log(findLatestVersion);
+          if(findLatestVersion && findLatestVersion.version){
+            data.version = findLatestVersion.version + 1;
+          }
+          else
+            data.version = 1;
         } else {
           // Current entry is a draft, check for existing draft entry
           whereClause.publishedAt = { $null: true };
           publishedStateDescription = 'draft';
         }
       }
-
-      const existingEntry = await strapi.db.query(uid).findOne({
-        select: ['id'],
-        where: whereClause,
-      });
-
-      if (existingEntry) {
-        let errorMsg = `A ${publishedStateDescription} entry with documentId "${data.documentId}"`;
-        if (isLocalized && data.locale) {
-          errorMsg += ` and locale "${data.locale}"`;
-        }
-        errorMsg += ` already exists for UID "${uid}". This combination must be unique.`;
-        throw new errors.ApplicationError(errorMsg);
-      }
+      // const existingEntry = await strapi.db.query(uid).findOne({
+      //   select: ['id'],
+      //   where: whereClause,
+      // });
+      // if (existingEntry) {
+      //   let errorMsg = `A ${publishedStateDescription} entry with documentId "${data.documentId}"`;
+      //   if (isLocalized && data.locale) {
+      //     errorMsg += ` and locale "${data.locale}"`;
+      //   }
+      //   errorMsg += ` already exists for UID "${uid}". This combination must be unique.`;
+      //   throw new errors.ApplicationError(errorMsg);
+      // }
     }
 
     const validData = await entityValidator.validateEntityCreation(contentType, data, {
@@ -71,7 +82,6 @@ const createEntriesService = (
       isDraft: !params?.data?.publishedAt,
       locale: params?.locale,
     });
-
     // Component handling
     const componentData = await components.createComponents(uid, validData);
     const dataWithComponents = components.assignComponentData(
@@ -81,13 +91,13 @@ const createEntriesService = (
     );
 
     const entryData = applyTransforms(contentType, dataWithComponents);
-
     const doc = await strapi.db.query(uid).create({ ...query, data: entryData });
 
     return doc;
   }
 
   async function deleteEntry(id: number) {
+    console.log("delete entry");
     const componentsToDelete = await components.getComponents(uid, { id });
 
     const deletedEntry = await strapi.db.query(uid).delete({ where: { id } });
@@ -98,6 +108,7 @@ const createEntriesService = (
   }
 
   async function updateEntry(entryToUpdate: any, params = {} as any) {
+    console.log("update entry");
     const { data, ...restParams } = await transformParamsDocumentId(uid, params);
     const query = transformParamsToQuery(uid, pickSelectionParams(restParams) as any); // select / populate
 
@@ -126,6 +137,7 @@ const createEntriesService = (
   }
 
   async function publishEntry(entry: any, params = {} as any) {
+    console.log("publish entry");
     return async.pipe(
       omit('id'),
       assoc('publishedAt', new Date()),

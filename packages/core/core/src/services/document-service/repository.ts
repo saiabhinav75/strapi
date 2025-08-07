@@ -318,7 +318,8 @@ export const createContentTypeRepository: RepositoryFactoryMethod = (
     });
 
     // Delete old published versions
-    await async.map(oldPublishedVersions, (entry: any) => entries.delete(entry.id));
+    console.log("Not Deleting old publishes")
+    // await async.map(oldPublishedVersions, (entry: any) => entries.delete(entry.id));
 
     // Transform draft entry data and create published versions
     const publishedEntries = await async.map(draftsToPublish, (draft: any) =>
