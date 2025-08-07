@@ -16,6 +16,7 @@ const DEFAULT_ATTIBUTES = [
   'updatedBy',
   'locale',
   'localizations',
+  // 'version'
 ];
 
 export const createGuidedTourService = ({ strapi }: { strapi: Core.Strapi }) => {
